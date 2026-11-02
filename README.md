@@ -132,3 +132,57 @@ Each row corresponds to one detected candidate celestial object:
 
 ---
 
+## 🔬 Algorithms Used in This Project
+
+All techniques in this pipeline are classical Digital Image Processing (DIP) algorithms implemented without machine learning:
+
+### 1. Stage 1 — Image Loading & Intensity Analysis
+* **Histogram Computation:** Generates pixel frequency distributions across individual color channels to evaluate dynamic range and exposure.
+
+### 2. Stage 2 — Grayscale Conversion
+* **ITU-R BT.601 Luminance Weighting:**
+  $$Y = 0.299 \cdot R + 0.587 \cdot G + 0.114 \cdot B$$
+  Converts 3-channel color to a single intensity matrix by weighting channels according to human visual/photometric sensitivity (highest for green, lowest for blue).
+
+### 3. Stage 3 — Contrast Enhancement
+* **Min-Max (Linear) Stretching:**
+  $$I_{\text{new}} = \left(\frac{I - I_{\min}}{I_{\max} - I_{\min}}\right) \times 255$$
+  Linearly rescales intensities between the absolute minimum and maximum values.
+* **Percentile-Based Robust Contrast Stretching:**
+  Clips the lower ($2^{\text{nd}}$) and upper ($98^{\text{th}}$) percentile values:
+  $$I_{\text{new}} = \operatorname{clip}\left(\frac{I - I_{\text{low}}}{I_{\text{high}} - I_{\text{low}}} \times 255, 0, 255\right)$$
+  Prevents a few saturated stars (value 255) from restricting the stretch, making faint background nebulae and galaxies visible.
+
+### 4. Stage 4 — Spatial Filtering & Denoising
+* **2D Gaussian Filter (Linear Low-Pass Smoothing):**
+  $$G(x, y) = \frac{1}{2\pi\sigma^2} \exp\left(-\frac{x^2 + y^2}{2\sigma^2}\right)$$
+  Computes weighted averages in a local spatial window to reduce high-frequency Gaussian noise.
+* **Median Filter (Non-Linear Order-Statistic Filter):**
+  Replaces each pixel with the statistical median of its $3 \times 3$ neighborhood. Completely suppresses isolated hot pixels and salt-and-pepper cosmic ray spikes without blurring sharp star edges.
+
+### 5. Stage 5 — Image Segmentation (Thresholding)
+* **Global Manual Thresholding:** Fixed intensity cutoff separating foreground from background.
+* **Otsu’s Automatic Thresholding (Optimal Bimodal Separation):**
+  Iterates through all possible thresholds $T \in [0, 255]$ to maximize the between-class variance:
+  $$\sigma_B^2(T) = \omega_0(T) \cdot \omega_1(T) \cdot \left[\mu_0(T) - \mu_1(T)\right]^2$$
+  Automatically finds the mathematical separation between dark sky and bright objects.
+* **Adaptive Local Thresholding:** Calculates dynamic pixel-wise thresholds based on Gaussian-weighted local neighborhood statistics minus a constant $C$.
+
+### 6. Stage 6 — Object Identification & Spatial Localization
+* **Connected-Component Labelling (CCL):**
+  Two-pass equivalence-resolving algorithm scanning the binary mask with **8-connectivity** (horizontal, vertical, and diagonal adjacency) to assign distinct integer IDs to touching foreground pixel clusters.
+* **Morphological Filtering:** Filters candidate regions based on minimum pixel area (`min_area`) to eliminate remaining sensor noise, and removes border-touching fragments.
+* **Spatial Centroid Calculation (Geometric Moments):**
+  $$C_x = \frac{M_{10}}{M_{00}}, \quad C_y = \frac{M_{01}}{M_{00}}$$
+  Pinpoints the exact spatial center of mass for each detected celestial body.
+
+### 7. Stage 7 — Morphological & Photometric Feature Extraction
+* **Bounding Box Calculation:** Computes enclosing axis-aligned rectangular extents $(x, y, w, h)$.
+* **Aspect Ratio:**
+  $$\text{Aspect Ratio} = \frac{w}{h}$$
+  Differentiates compact circular objects ($\approx 1.0$) from elongated or edge-on galaxies ($> 2.0$ or $< 0.5$).
+* **Bounding Box Extent (Fill Factor):**
+  $$\text{Extent} = \frac{\text{Area}}{w \times h}$$
+  Measures foreground coverage (compact point sources approach $\approx 1.0$, filled disks $\approx 0.785$, and irregular galaxies $< 0.5$).
+* **Mean Photometric Intensity:**
+  Measures the average grayscale brightness across all constituent pixels of each candidate object.

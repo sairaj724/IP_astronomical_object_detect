@@ -218,10 +218,8 @@ def run_stage6(mask: np.ndarray,
               f"{r['cy']:>7.1f}  {r['w']:>5}  {r['h']:>5}  "
               f"{r['mean_intensity']:>7.1f}")
 
-    # Step E: Visualise
     display_detected_objects(gray, regions, image_path)
 
-    # Step F: Area distribution
     display_area_distribution(regions)
 
     print(f"\n[Stage 6 complete]")
@@ -259,7 +257,7 @@ if __name__ == "__main__":
 
     regions = run_stage6(
         mask          = otsu_mask,
-        gray          = enhanced_image,   # use contrast-enhanced for intensity
+        gray          = enhanced_image,   
         image_path    = image_path,
         min_area      = 5,
         max_area      = None,
