@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CosmicDIP — Astronomical Image Processing</title>
+  <meta name="description" content="Classical Digital Image Processing pipeline for astronomical images. Interactive Stage 8 Pipeline Visualizer and Stage 9 Object Catalogue Explorer." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════ STARFIELD CANVAS ═══════════════════════ -->
+<canvas id="starfield"></canvas>
+
+<!-- ═══════════════════════ TOP NAV ═══════════════════════ -->
+<header class="topbar">
+  <div class="topbar-logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <circle cx="14" cy="14" r="5" fill="#00e5ff" opacity="0.9"/>
+      <circle cx="14" cy="14" r="9" stroke="#00e5ff" stroke-width="1.2" opacity="0.4" stroke-dasharray="4 3"/>
+      <circle cx="14" cy="14" r="13" stroke="#7b61ff" stroke-width="0.8" opacity="0.25" stroke-dasharray="2 4"/>
+    </svg>
+    <span class="topbar-title">CosmicDIP</span>
+    <span class="topbar-sub">Astronomical Image Processing</span>
+  </div>
+  <nav class="topbar-nav">
+    <button id="tab-stage8" class="tab-btn active" onclick="switchTab('stage8')">
+      <span class="tab-icon">⬡</span> Stage 8 — Pipeline
+    </button>
+    <button id="tab-stage9" class="tab-btn" onclick="switchTab('stage9')">
+      <span class="tab-icon">◈</span> Stage 9 — Explorer
+    </button>
+  </nav>
+</header>
+
+<!-- ═══════════════════════ MAIN LAYOUT ═══════════════════════ -->
+<main class="main-layout">
+
+  <!-- ────── LEFT SIDEBAR ────── -->
+  <aside class="sidebar" id="sidebar">
+    <section class="sidebar-section">
+      <h3 class="sidebar-heading">Image Source</h3>
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept="image/*" hidden />
+        <div class="upload-inner" onclick="document.getElementById('file-input').click()">
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+            <circle cx="18" cy="18" r="16" stroke="#7b61ff" stroke-width="1.5" stroke-dasharray="5 3" opacity="0.6"/>
+            <path d="M18 12v10M13 17l5-5 5 5" stroke="#00e5ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <p class="upload-label">Drop an image or <span class="link">browse</span></p>
+          <p class="upload-hint" id="upload-hint">Using default sample image</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stage 3 params -->
+    <section class="sidebar-section">
+      <h3 class="sidebar-heading">Stage 3 — Contrast</h3>
+      <label class="param-label">
+        Lower Percentile: <b id="val-plow">2.0</b>%
+        <input type="range" id="p-low" min="0" max="10" step="0.5" value="2" class="slider" oninput="document.getElementById('val-plow').textContent=this.value"/>
+      </label>
+      <label class="param-label">
+        Upper Percentile: <b id="val-phigh">98.0</b>%
+        <input type="range" id="p-high" min="80" max="100" step="0.5" value="98" class="slider" oninput="document.getElementById('val-phigh').textContent=this.value"/>
+      </label>
+    </section>
+
+    <!-- Stage 4 params -->
+    <section class="sidebar-section">
+      <h3 class="sidebar-heading">Stage 4 — Filter</h3>
+      <label class="param-label">Type
+        <select id="filter-type" class="select">
+          <option value="median">Median</option>
+          <option value="gaussian">Gaussian</option>
+        </select>
+      </label>
+      <label class="param-label">
+        Kernel Size: <b id="val-kernel">3</b>
+        <input type="range" id="kernel-size" min="3" max="15" step="2" value="3" class="slider" oninput="document.getElementById('val-kernel').textContent=this.value"/>
+      </label>
+    </section>
+
+    <!-- Stage 5 params -->
+    <section class="sidebar-section">
+      <h3 class="sidebar-heading">Stage 5 — Threshold</h3>
+      <label class="param-label">Method
+        <select id="thresh-method" class="select" onchange="toggleThreshParams()">
+          <option value="otsu">Otsu (Auto)</option>
+          <option value="global">Global (Manual)</option>
+          <option value="adaptive">Adaptive</option>
+        </select>
+      </label>
+      <div id="params-global" class="conditional hidden">
+        <label class="param-label">
+          Threshold T: <b id="val-globalT">130</b>
+          <input type="range" id="global-t" min="0" max="255" step="1" value="130" class="slider" oninput="document.getElementById('val-globalT').textContent=this.value"/>
+        </label>
+      </div>
+      <div id="params-adaptive" class="conditional hidden">
+        <label class="param-label">
+          Block Size: <b id="val-block">51</b>
+          <input type="range" id="block-size" min="11" max="201" step="2" value="51" class="slider" oninput="document.getElementById('val-block').textContent=this.value"/>
+        </label>
+        <label class="param-label">
+          C Constant: <b id="val-C">5</b>
+          <input type="range" id="c-val" min="0" max="30" step="1" value="5" class="slider" oninput="document.getElementById('val-C').textContent=this.value"/>
+        </label>
+      </div>
+    </section>
+
+    <!-- Stage 6 params -->
+    <section class="sidebar-section">
+      <h3 class="sidebar-heading">Stage 6 — CCL Filter</h3>
+      <label class="param-label">
+        Min Area (px): <b id="val-minarea">5</b>
+        <input type="range" id="min-area" min="1" max="500" step="1" value="5" class="slider" oninput="document.getElementById('val-minarea').textContent=this.value"/>
+      </label>
+      <label class="param-label">
+        Max Area (px): <b id="val-maxarea">None</b>
+        <input type="range" id="max-area" min="0" max="100000" step="100" value="0" class="slider" oninput="document.getElementById('val-maxarea').textContent=(+this.value>0?this.value:'None')"/>
+      </label>
+    </section>
+
+    <div class="run-btn-wrap">
+      <button id="run-btn" class="run-btn" onclick="runCurrentTab()">
+        <span class="run-icon">▶</span> Run Pipeline
+      </button>
+    </div>
+  </aside>
+
+  <!-- ────── MAIN CONTENT AREA ────── -->
+  <div class="content-area">
+
+    <!-- ════ STAGE 8 TAB ════ -->
+    <div id="page-stage8" class="tab-page active">
+      <div class="page-header">
+        <h1 class="page-title">Stage 8 — Pipeline Visualizer</h1>
+        <p class="page-desc">Six-panel comparative view of the full classical DIP pipeline from raw image to detected objects.</p>
+        <div id="s8-stats" class="stat-bar hidden">
+          <span class="stat-chip" id="s8-n-objects">— objects</span>
+          <span class="stat-chip" id="s8-otsu">Otsu T=—</span>
+          <span class="stat-chip" id="s8-shape">—</span>
+        </div>
+      </div>
+
+      <div class="spinner-wrap" id="s8-spinner" style="display:none">
+        <div class="spinner"></div>
+        <p class="spinner-label">Processing astronomical image…</p>
+      </div>
+      <div class="error-box hidden" id="s8-error"></div>
+
+      <!-- 2×3 comparison grid -->
+      <div class="panel-grid" id="s8-grid">
+        <div class="panel-card" id="pc-original">
+          <div class="panel-label"><span class="panel-num">01</span> Raw Input Image</div>
+          <div class="panel-img-wrap"><img id="img-original" class="panel-img" alt="Original" /></div>
+        </div>
+        <div class="panel-card" id="pc-gray">
+          <div class="panel-label"><span class="panel-num">02</span> Grayscale Conversion</div>
+          <div class="panel-img-wrap"><img id="img-gray" class="panel-img" alt="Grayscale" /></div>
+        </div>
+        <div class="panel-card" id="pc-enhanced">
+          <div class="panel-label"><span class="panel-num">03</span> Contrast Enhanced</div>
+          <div class="panel-img-wrap"><img id="img-enhanced" class="panel-img" alt="Enhanced" /></div>
+        </div>
+        <div class="panel-card" id="pc-filtered">
+          <div class="panel-label"><span class="panel-num">04</span> Noise Filtered</div>
+          <div class="panel-img-wrap"><img id="img-filtered" class="panel-img" alt="Filtered" /></div>
+        </div>
+        <div class="panel-card" id="pc-mask">
+          <div class="panel-label"><span class="panel-num">05</span> Binary Mask</div>
+          <div class="panel-img-wrap"><img id="img-mask" class="panel-img" alt="Mask" /></div>
+        </div>
+        <div class="panel-card panel-card--accent" id="pc-overlay">
+          <div class="panel-label"><span class="panel-num">06</span> Detected Objects</div>
+          <div class="panel-img-wrap"><img id="img-overlay" class="panel-img" alt="Overlay" /></div>
+        </div>
+      </div>
+
+      <div class="legend-row">
+        <span class="legend-dot" style="background:#00e5ff"></span> Large (>500 px)
+        <span class="legend-dot" style="background:#ffd600"></span> Medium (50–500 px)
+        <span class="legend-dot" style="background:#ff4081"></span> Small (&lt;50 px)
+      </div>
+    </div><!-- /stage8 -->
+
+
+    <!-- ════ STAGE 9 TAB ════ -->
+    <div id="page-stage9" class="tab-page">
+      <div class="page-header">
+        <h1 class="page-title">Stage 9 — Object Inspector & Catalogue</h1>
+        <p class="page-desc">Interactively filter, inspect, and export the detected candidate object catalogue.</p>
+      </div>
+
+      <!-- Stage 9 extra filters -->
+      <div class="s9-filters">
+        <div class="filter-group">
+          <span class="filter-label">Intensity:</span>
+          <span class="filter-val" id="val-minI">0</span>–<span class="filter-val" id="val-maxI">255</span>
+          <input type="range" id="min-intensity" min="0" max="255" value="0" class="slider" oninput="document.getElementById('val-minI').textContent=this.value"/>
+          <input type="range" id="max-intensity" min="0" max="255" value="255" class="slider" oninput="document.getElementById('val-maxI').textContent=this.value"/>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Area:</span>
+          <span class="filter-val" id="val-minAf">0</span>–<span class="filter-val" id="val-maxAf">∞</span> px
+          <input type="range" id="min-area-f" min="0" max="5000" value="0" class="slider" oninput="document.getElementById('val-minAf').textContent=this.value"/>
+          <input type="range" id="max-area-f" min="0" max="100000" step="100" value="0" class="slider" oninput="document.getElementById('val-maxAf').textContent=(+this.value>0?this.value:'inf')"/>
+        </div>
+        <button class="export-btn" id="export-btn" onclick="exportCSV()">
+          ↓ Export CSV
+        </button>
+      </div>
+
+      <div class="spinner-wrap" id="s9-spinner" style="display:none">
+        <div class="spinner"></div>
+        <p class="spinner-label">Running Stage 9 analysis…</p>
+      </div>
+      <div class="error-box hidden" id="s9-error"></div>
+
+      <!-- Stage 9 result area -->
+      <div class="s9-layout" id="s9-result">
+        <!-- Left: overlay + scatter -->
+        <div class="s9-left">
+          <div class="panel-card">
+            <div class="panel-label">Filtered Detections Overlay</div>
+            <div class="panel-img-wrap">
+              <img id="s9-overlay" class="panel-img" alt="Stage9 overlay" />
+            </div>
+            <p class="panel-hint">Showing only objects matching current filters</p>
+          </div>
+          <div class="panel-card" style="margin-top:18px">
+            <div class="panel-label">Feature Space: Area vs Intensity</div>
+            <div class="panel-img-wrap">
+              <img id="s9-scatter" class="panel-img" alt="Scatter" />
+            </div>
+          </div>
+        </div>
+        <!-- Right: catalogue table -->
+        <div class="s9-right">
+          <div class="table-header-row">
+            <span class="table-title">Object Catalogue</span>
+            <span class="table-count" id="s9-count">— / — objects</span>
+          </div>
+          <div class="table-wrap">
+            <table id="catalogue-table" class="cat-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Cx</th>
+                  <th>Cy</th>
+                  <th>Area</th>
+                  <th>Intensity</th>
+                  <th>Aspect</th>
+                  <th>Extent</th>
+                </tr>
+              </thead>
+              <tbody id="cat-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Object detail card (appears after row click) -->
+      <div class="obj-detail hidden" id="obj-detail">
+        <button class="detail-close" onclick="document.getElementById('obj-detail').classList.add('hidden')">✕</button>
+        <h4 class="detail-title">Candidate Object <span id="detail-id"></span></h4>
+        <div class="detail-grid" id="detail-grid"></div>
+      </div>
+    </div><!-- /stage9 -->
+
+  </div><!-- /content-area -->
+</main>
+
+<!-- ═══════════════════════ TOAST ═══════════════════════ -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
